@@ -1,0 +1,195 @@
+-- 🌈 NEON v1 GUI with Aimbot, ESP Skeleton, Distance, and Noclip
+-- ✅ Fully toggleable with RGB GUI and Text Effects
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local lp = Players.LocalPlayer
+local mouse = lp:GetMouse()
+local camera = workspace.CurrentCamera
+
+-- GUI Setup
+local function createGui()
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "NEON_GUI"
+    gui.ResetOnSpawn = false
+    gui.Parent = lp:WaitForChild("PlayerGui")
+
+    local frame = Instance.new("Frame", gui)
+    frame.Size = UDim2.new(0, 320, 0, 480)
+    frame.Position = UDim2.new(0.5, -160, 0.5, -240)
+    frame.BackgroundColor3 = Color3.new(1, 1, 1)
+    frame.BorderSizePixel = 0
+    frame.Active = true
+    frame.Draggable = true
+
+    local title = Instance.new("TextLabel", frame)
+    title.Size = UDim2.new(1, 0, 0, 50)
+    title.BackgroundTransparency = 1
+    title.TextColor3 = Color3.fromRGB(255, 0, 255)
+    title.Font = Enum.Font.Arcade
+    title.TextSize = 28
+    title.Text = "🌈 NEON v1"
+
+    local function animateTextRGB(label)
+        coroutine.wrap(function()
+            while true do
+                for i = 0, 1, 0.01 do
+                    label.TextColor3 = Color3.fromHSV(i, 1, 1)
+                    RunService.RenderStepped:Wait()
+                end
+            end
+        end)()
+    end
+    animateTextRGB(title)
+    animateTextRGB(frame)
+
+    local minimize = Instance.new("TextButton", frame)
+    minimize.Size = UDim2.new(0, 30, 0, 30)
+    minimize.Position = UDim2.new(1, -35, 0, 5)
+    minimize.Text = "-"
+    minimize.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    minimize.TextColor3 = Color3.new(1, 1, 1)
+    minimize.TextSize = 20
+    minimize.Font = Enum.Font.GothamBold
+
+    local minimized = false
+    minimize.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        for _, child in pairs(frame:GetChildren()) do
+            if child ~= title and child ~= minimize then
+                child.Visible = not minimized
+            end
+        end
+        frame.Size = minimized and UDim2.new(0, 320, 0, 50) or UDim2.new(0, 320, 0, 480)
+    end)
+
+    return gui, frame
+end
+
+local gui, frame = createGui()
+
+-- Toggle Variables
+local toggles = {
+    Aimbot = false,
+    ESP = false,
+    Skeleton = false,
+    Noclip = false
+}
+
+-- Aimbot
+local function getNearest()
+    local closest, dist = nil, math.huge
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character and p.Character:FindFirstChild("Head") then
+            local pos, onScreen = camera:WorldToViewportPoint(p.Character.Head.Position)
+            if onScreen then
+                local mag = (Vector2.new(pos.X, pos.Y) - Vector2.new(mouse.X, mouse.Y)).Magnitude
+                if mag < 150 and mag < dist then
+                    dist = mag
+                    closest = p
+                end
+            end
+        end
+    end
+    return closest
+end
+
+RunService.RenderStepped:Connect(function()
+    if toggles.Aimbot and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+        local target = getNearest()
+        if target and target.Character and target.Character:FindFirstChild("Head") then
+            local pos = target.Character.Head.Position
+            local cf = CFrame.new(camera.CFrame.Position, pos)
+            camera.CFrame = camera.CFrame:Lerp(cf, 0.35)
+        end
+    end
+end)
+
+-- ESP + Skeleton
+local function updateESP()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = p.Character.HumanoidRootPart
+
+            if not hrp:FindFirstChild("ESP") then
+                local esp = Instance.new("BillboardGui", hrp)
+                esp.Name = "ESP"
+                esp.Size = UDim2.new(0, 200, 0, 30)
+                esp.StudsOffset = Vector3.new(0, 3, 0)
+                esp.AlwaysOnTop = true
+
+                local label = Instance.new("TextLabel", esp)
+                label.Size = UDim2.new(1, 0, 1, 0)
+                label.BackgroundTransparency = 1
+                label.TextColor3 = Color3.new(1, 1, 1)
+                label.TextScaled = true
+                label.Font = Enum.Font.SourceSansBold
+                label.Text = p.Name
+            end
+
+            local label = hrp:FindFirstChild("ESP") and hrp.ESP:FindFirstChildOfClass("TextLabel")
+            if label then
+                local dist = math.floor((hrp.Position - camera.CFrame.Position).Magnitude)
+                label.Text = p.Name .. " [" .. dist .. "m]"
+            end
+
+            if toggles.Skeleton then
+                for _, part in pairs(p.Character:GetChildren()) do
+                    if part:IsA("BasePart") and not part:FindFirstChild("Skeleton") then
+                        local skel = Instance.new("BoxHandleAdornment")
+                        skel.Name = "Skeleton"
+                        skel.Adornee = part
+                        skel.Size = part.Size
+                        skel.Color3 = Color3.fromRGB(0, 255, 255)
+                        skel.Transparency = 0.5
+                        skel.ZIndex = 5
+                        skel.AlwaysOnTop = true
+                        skel.Parent = part
+                    end
+                end
+            end
+        end
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    if toggles.ESP then updateESP() end
+end)
+
+-- Noclip
+RunService.Stepped:Connect(function()
+    if toggles.Noclip and lp.Character then
+        for _, part in pairs(lp.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- Toggle Button Creator
+local yIndex = 0.2
+local function createToggle(name)
+    local button = Instance.new("TextButton", frame)
+    button.Size = UDim2.new(0.8, 0, 0, 40)
+    button.Position = UDim2.new(0.1, 0, yIndex, 0)
+    button.Text = name .. ": OFF"
+    button.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 14
+    button.MouseButton1Click:Connect(function()
+        toggles[name] = not toggles[name]
+        button.Text = name .. (toggles[name] and ": ON" or ": OFF")
+    end)
+    yIndex = yIndex + 0.1
+end
+
+createToggle("Aimbot")
+createToggle("ESP")
+createToggle("Skeleton")
+createToggle("Noclip")
+
+print("✅ NEON v1 Loaded")
